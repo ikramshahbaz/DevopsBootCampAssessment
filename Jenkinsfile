@@ -1,0 +1,42 @@
+node{
+	try {
+    stage('Git Checkout'){
+      git 'https://github.com/ikramshahbaz/DevopsBootCampAssessment.git'
+    }
+     stage('Sonar qube'){
+        withSonarQubeEnv(credentialsId: 'SonarQube') {
+    sh 'mvn clean package sonar:sonar'
+	}
+    }
+    stage('JUnit Test Results'){
+         junit testDataPublishers: [[$class: 'AttachmentPublisher']], testResults: 'target/surefire-reports/TEST-*.xml'
+    }
+        stage('Build Docker Image'){
+        sh 'docker build -t ikramshahbaz/devops-image:1.0 .'
+    }
+        stage('Docker Push image'){
+        withCredentials([string(credentialsId: 'secrets', variable: 'secret1')]) { 
+        sh 'docker login -u ikramshahbaz -p "${secret1}"'  
+	}
+        sh 'docker push ikramshahbaz/devops-image:1.0'
+    }
+        stage("Pull Container"){
+        sh 'docker pull ikramshahbaz/devops-image:1.0'
+    }
+        stage("Run Container"){
+        sh 'docker run -idt -p 8887:8885 ikramshahbaz/devops-image:1.0'
+    }
+	currentBuild.result = 'SUCCESS'
+	}
+	catch (err) {
+    currentBuild.result = 'FAILURE'
+	}
+	finally {
+    stage('Email Build Status'){
+        mail body: "Job Name :- ${env.JOB_NAME}, Build # :- ${env.BUILD_NUMBER}, ${currentBuild.currentResult}\n\n Check console output at ${env.BUILD_URL} to view results.", subject: "Build Results - ${env.JOB_NAME}, Build # :- ${env.BUILD_NUMBER}", to: 'ikramshahbaz@gmail.com'
+    }
+	}
+}
+
+
+
